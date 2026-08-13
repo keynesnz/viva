@@ -1,0 +1,15 @@
+{
+  "name": "html-to-mp4-action",
+  "version": "1.0.0",
+  "description": "Converts HTML to MP4 using Puppeteer and FFmpeg",
+  "main": "record.js",
+  "scripts": {
+    "start": "node record.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "puppeteer": "^21.6.1"
+  }
+}
