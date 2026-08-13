@@ -1,0 +1,28 @@
+name: Convert HTML to MP4
+
+on:
+  push:
+    branches:
+      - main 
+
+jobs:
+  build-video:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - name: Install Dependencies
+        run: npm install puppeteer
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Run Recording Script
+        run: node record.js
+      - name: Upload MP4 as Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: my-html-video
+          path: output.mp4
