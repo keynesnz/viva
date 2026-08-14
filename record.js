@@ -24,8 +24,8 @@ const { execSync } = require('child_process');
 
   console.log(`Capturing ${totalFrames} frames at real-time speed...`);
 
-  // Use Node.js's real-world clock, NOT the browser's clock
-  const globalStartTime = Date.now();
+  // Start the clock once at the very beginning
+  const startTime = Date.now();
 
   for (let i = 0; i < totalFrames; i++) {
     const frameNum = String(i + 1).padStart(4, '0');
@@ -33,22 +33,18 @@ const { execSync } = require('child_process');
     // 1. Take the screenshot
     await page.screenshot({ path: `${framesDir}/frame_${frameNum}.png` });
 
-    // 2. Check how much real-world time has passed since we started THIS specific frame
-    const frameTimeTaken = Date.now() - globalStartTime;
+    // 2. Check total real-world time passed since the VERY START
+    const totalTimePassed = Date.now() - startTime;
     
-    // 3. Calculate when the NEXT frame should happen in real-world time
+    // 3. Calculate when the NEXT frame is supposed to happen
     const nextFrameTargetMs = (i + 1) * frameDurationMs;
     
-    // 4. If we finished taking the screenshot early, wait the exact remaining time.
-    // If we took too long (server lag), wait 0ms so we don't pause and cause more lag.
-    const timeToWait = Math.max(0, nextFrameTargetMs - frameTimeTaken);
+    // 4. Wait for the exact remaining time
+    const timeToWait = Math.max(0, nextFrameTargetMs - totalTimePassed);
     
     if (timeToWait > 0) {
       await new Promise(r => setTimeout(r, timeToWait));
     }
-    
-    // Reset the timer for the next loop iteration
-    globalStartTime.setTime(Date.now());
   }
 
   await browser.close();
