@@ -4,7 +4,7 @@ const { execSync } = require('child_process');
 
 (async () => {
   const browser = await puppeteer.launch({
-    headless: 'new',
+    headless: true, 
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
   });
   
@@ -12,56 +12,42 @@ const { execSync } = require('child_process');
   await page.setViewport({ width: 1280, height: 720 });
 
   const filePath = 'file://' + __dirname + '/index.html';
-  await page.goto(filePath, { waitUntil: 'networkidle0' }); // Wait for all images/fonts to load
+  await page.goto(filePath, { waitUntil: 'networkidle0' }); 
 
   const framesDir = './frames';
   if (!fs.existsSync(framesDir)) fs.mkdirSync(framesDir);
 
   const fps = 30;
-  const durationSeconds = 5;
+  const durationSeconds = 5; // Change this to make the video longer/shorter
   const totalFrames = fps * durationSeconds;
 
-  // We inject this code DIRECTLY into the browser. 
-  // This guarantees perfect frame timing without network lag.
-  const captureFrames = async () => {
-    await page.evaluate((fps, totalFrames, framesDir) => {
-      return new Promise((resolve) => {
-        let frameCount = 0;
-        const interval = 1000 / fps;
+  console.log(`Capturing ${totalFrames} frames...`);
 
-        // Use an interval synced with the browser's internal clock
-        const timer = setInterval(async () => {
-          if (frameCount >= totalFrames) {
-            clearInterval(timer);
-            resolve();
-            return;
-          }
+  // We ask the browser for its exact internal clock time
+  const startTime = await page.evaluate(() => performance.now());
+  const intervalMs = 1000 / fps;
 
-          const frameNum = String(frameCount + 1).padStart(4, '0');
-          
-          // Capture the exact pixel data of the current frame
-          const base64 = await page.screenshot({ encoding: 'base64' });
-          
-          // Write to disk from inside the browser context
-          const buffer = Buffer.from(base64, 'base64');
-          require('fs').writeFileSync(`${framesDir}/frame_${frameNum}.png`, buffer);
-          
-          frameCount++;
-        }, interval);
-      });
-    }, fps, totalFrames, framesDir);
-  };
+  for (let i = 0; i < totalFrames; i++) {
+    const frameNum = String(i + 1).padStart(4, '0');
+    
+    // Take the screenshot directly from Node.js (prevents timeout)
+    await page.screenshot({ path: `${framesDir}/frame_${frameNum}.png` });
 
-  console.log('Capturing perfect frames...');
-  await captureFrames();
+    // Calculate exactly how long to wait so the next screenshot happens 
+    // perfectly on the next frame boundary (e.g., exactly 33.33ms later)
+    const elapsed = await page.evaluate((start) => performance.now() - start, startTime);
+    const targetTime = (i + 1) * intervalMs;
+    const waitTime = Math.max(0, targetTime - elapsed);
+    
+    if (waitTime > 0) {
+      await new Promise(r => setTimeout(r, waitTime));
+    }
+  }
+
   await browser.close();
+  console.log('Frames captured successfully. Encoding MP4...');
 
-  console.log('Encoding MP4 with FFmpeg...');
-  
-  // FFmpeg settings for BEST quality:
-  // -preset slow: Takes longer to render, but compresses the file much better with zero pixelation
-  // -crf 18: Visual quality (lower is better. 18 is visually lossless)
-  // -pix_fmt yuv420p: Ensures it plays on Macs, Windows, and iPhones
+  // FFmpeg command for highest quality
   execSync(
     `ffmpeg -y -framerate ${fps} -i ${framesDir}/frame_%04d.png -c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2" output.mp4`
   );
